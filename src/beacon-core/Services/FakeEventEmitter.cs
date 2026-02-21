@@ -17,29 +17,11 @@ public sealed class FakeEventEmitter : BackgroundService
     {
         _logger.LogInformation("FakeEventEmitter started — cycling events every 10s");
 
-        var sequence = new BeaconEvent[]
+        var sequence = new[]
         {
-            new()
-            {
-                EventType = BeaconEventType.Waiting,
-                Source = AgentSource.Unknown,
-                HookEvent = "Fake",
-                Reason = "[fake] Agent is waiting for approval",
-            },
-            new()
-            {
-                EventType = BeaconEventType.Done,
-                Source = AgentSource.Unknown,
-                HookEvent = "Fake",
-                Reason = "[fake] Agent has finished",
-            },
-            new()
-            {
-                EventType = BeaconEventType.Clear,
-                Source = AgentSource.Unknown,
-                HookEvent = "Fake",
-                Reason = "[fake] User returned",
-            },
+            (BeaconEventType.Waiting, "[fake] Agent is waiting for approval"),
+            (BeaconEventType.Done, "[fake] Agent has finished"),
+            (BeaconEventType.Clear, "[fake] User returned"),
         };
 
         var index = 0;
@@ -48,7 +30,14 @@ public sealed class FakeEventEmitter : BackgroundService
         {
             await Task.Delay(10_000, stoppingToken);
 
-            var evt = sequence[index % sequence.Length];
+            var (eventType, reason) = sequence[index % sequence.Length];
+            var evt = new BeaconEvent
+            {
+                EventType = eventType,
+                Source = AgentSource.Unknown,
+                HookEvent = "Fake",
+                Reason = reason,
+            };
             _logger.LogInformation("Emitting fake event: {Event}", evt.EventType);
             _bus.Publish(evt);
             index++;
