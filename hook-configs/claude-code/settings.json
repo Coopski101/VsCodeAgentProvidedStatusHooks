@@ -6,6 +6,7 @@
           {
             "type": "command",
             "command": "curl -s -X POST http://127.0.0.1:17321/hook -H 'Content-Type: application/json' -d @- > /dev/null 2>&1",
+            "windows": "curl.exe -s -X POST http://127.0.0.1:17321/hook -H \"Content-Type: application/json\" -d @- > nul 2>&1",
             "async": true,
             "timeout": 5
           }
@@ -19,6 +20,7 @@
           {
             "type": "command",
             "command": "curl -s -X POST http://127.0.0.1:17321/hook -H 'Content-Type: application/json' -d @- > /dev/null 2>&1",
+            "windows": "curl.exe -s -X POST http://127.0.0.1:17321/hook -H \"Content-Type: application/json\" -d @- > nul 2>&1",
             "async": true,
             "timeout": 5
           }
@@ -31,6 +33,7 @@
           {
             "type": "command",
             "command": "curl -s -X POST http://127.0.0.1:17321/hook -H 'Content-Type: application/json' -d @- > /dev/null 2>&1",
+            "windows": "curl.exe -s -X POST http://127.0.0.1:17321/hook -H \"Content-Type: application/json\" -d @- > nul 2>&1",
             "async": true,
             "timeout": 5
           }
@@ -43,6 +46,7 @@
           {
             "type": "command",
             "command": "curl -s -X POST http://127.0.0.1:17321/hook -H 'Content-Type: application/json' -d @- > /dev/null 2>&1",
+            "windows": "curl.exe -s -X POST http://127.0.0.1:17321/hook -H \"Content-Type: application/json\" -d @- > nul 2>&1",
             "async": true,
             "timeout": 5
           }
@@ -55,6 +59,7 @@
           {
             "type": "command",
             "command": "curl -s -X POST http://127.0.0.1:17321/hook -H 'Content-Type: application/json' -d @- > /dev/null 2>&1",
+            "windows": "curl.exe -s -X POST http://127.0.0.1:17321/hook -H \"Content-Type: application/json\" -d @- > nul 2>&1",
             "async": true,
             "timeout": 5
           }
