@@ -45,7 +45,7 @@ public sealed class HookNormalizer
         if (!mappings.TryGetValue(mappingKey, out var targetStr))
         {
             _logger.LogDebug(
-                "No EventMapping found for key '{MappingKey}' in {Agent} mappings — ignoring",
+                "No EventMapping found for key '{MappingKey}' in {Agent} mappings, ignoring",
                 mappingKey,
                 agent
             );
@@ -62,7 +62,7 @@ public sealed class HookNormalizer
             return null;
         }
 
-        _logger.LogDebug(
+        _logger.LogInformation(
             "Mapped '{MappingKey}' -> {EventType} (source: {Agent})",
             mappingKey,
             eventType,

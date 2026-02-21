@@ -54,6 +54,10 @@ public sealed class PresenceClearService : BackgroundService
 
                 if (_monitor.IsAppFocused(_config.VscodeProcessName))
                 {
+                    _logger.LogInformation(
+                        "AFK return with VS Code focused — publishing Clear (mode={Mode})",
+                        _bus.CurrentMode
+                    );
                     _bus.Publish(
                         new BeaconEvent
                         {
@@ -63,6 +67,10 @@ public sealed class PresenceClearService : BackgroundService
                             Reason = "User returned from AFK while VS Code is focused",
                         }
                     );
+                }
+                else
+                {
+                    _logger.LogDebug("AFK return but VS Code not focused — skipping Clear");
                 }
             }
 
@@ -80,7 +88,10 @@ public sealed class PresenceClearService : BackgroundService
             )
         )
         {
-            _logger.LogDebug("VS Code gained focus");
+            _logger.LogInformation(
+                "VS Code gained focus — publishing Clear (mode={Mode})",
+                _bus.CurrentMode
+            );
             _bus.Publish(
                 new BeaconEvent
                 {

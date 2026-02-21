@@ -81,6 +81,8 @@ public sealed class WindowsPlatformMonitor : IPlatformMonitor
 
         _logger.LogInformation("Windows platform monitor hook installed");
 
+        tcs.SetResult();
+
         ct.Register(() =>
             Win32.PostThreadMessage(_messagePumpThreadId, Win32.WM_QUIT, nint.Zero, nint.Zero)
         );
@@ -95,7 +97,6 @@ public sealed class WindowsPlatformMonitor : IPlatformMonitor
         _logger.LogInformation("Windows platform monitor hook removed");
 
         GC.KeepAlive(callback);
-        tcs.SetResult();
     }
 
     private void OnForegroundChanged(
@@ -115,9 +116,11 @@ public sealed class WindowsPlatformMonitor : IPlatformMonitor
                 return;
 
             var process = Process.GetProcessById((int)pid);
-            _lastFocusedProcessName = process.ProcessName;
+            var name = process.ProcessName;
+            _logger.LogDebug("Foreground changed to {Process} (pid={Pid})", name, pid);
+            _lastFocusedProcessName = name;
 
-            AppFocusGained?.Invoke(process.ProcessName);
+            AppFocusGained?.Invoke(name);
         }
         catch (Exception ex)
         {
