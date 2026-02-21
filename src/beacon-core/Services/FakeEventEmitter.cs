@@ -35,6 +35,7 @@ public sealed class FakeEventEmitter : BackgroundService
             {
                 EventType = eventType,
                 Source = AgentSource.Unknown,
+                SessionId = "fake-session",
                 HookEvent = "Fake",
                 Reason = reason,
             };

@@ -20,11 +20,16 @@ public enum AgentSource
 
 public sealed class BeaconEvent
 {
+    public const string BroadcastSessionId = "*";
+
     [JsonPropertyName("eventType")]
     public required BeaconEventType EventType { get; init; }
 
     [JsonPropertyName("source")]
     public required AgentSource Source { get; init; }
+
+    [JsonPropertyName("sessionId")]
+    public required string SessionId { get; init; }
 
     [JsonPropertyName("hookEvent")]
     public required string HookEvent { get; init; }

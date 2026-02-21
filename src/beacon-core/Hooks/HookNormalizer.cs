@@ -63,7 +63,8 @@ public sealed class HookNormalizer
         }
 
         _logger.LogInformation(
-            "Mapped '{MappingKey}' -> {EventType} (source: {Agent})",
+            "[{SessionId}] Mapped '{MappingKey}' -> {EventType} (source: {Agent})",
+            payload.ResolvedSessionId[..Math.Min(8, payload.ResolvedSessionId.Length)],
             mappingKey,
             eventType,
             agent
@@ -73,6 +74,7 @@ public sealed class HookNormalizer
         {
             EventType = eventType,
             Source = agent,
+            SessionId = payload.ResolvedSessionId,
             HookEvent = hookEvent,
             Reason = BuildReason(hookEvent, payload),
             Timestamp = DateTimeOffset.UtcNow,

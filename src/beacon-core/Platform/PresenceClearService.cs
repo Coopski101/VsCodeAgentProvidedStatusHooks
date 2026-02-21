@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using BeaconCore.Config;
 using BeaconCore.Events;
 
@@ -11,6 +12,7 @@ public sealed class PresenceClearService : BackgroundService
     private readonly ILogger<PresenceClearService> _logger;
 
     private bool _wasAfk;
+    private int _lastVscodeProcessCount;
 
     public PresenceClearService(
         IPlatformMonitor monitor,
@@ -41,6 +43,8 @@ public sealed class PresenceClearService : BackgroundService
         {
             await Task.Delay(_config.PollIntervalMs, stoppingToken);
 
+            CheckVscodeProcesses();
+
             var idle = _monitor.UserIdleDuration;
             var isAfk = idle > TimeSpan.FromSeconds(_config.AfkThresholdSeconds);
 
@@ -63,6 +67,7 @@ public sealed class PresenceClearService : BackgroundService
                         {
                             EventType = BeaconEventType.Clear,
                             Source = AgentSource.Unknown,
+                            SessionId = BeaconEvent.BroadcastSessionId,
                             HookEvent = "AfkReturn",
                             Reason = "User returned from AFK while VS Code is focused",
                         }
@@ -75,6 +80,39 @@ public sealed class PresenceClearService : BackgroundService
             }
 
             _wasAfk = isAfk;
+        }
+    }
+
+    private void CheckVscodeProcesses()
+    {
+        try
+        {
+            var count = Process.GetProcessesByName(_config.VscodeProcessName).Length;
+
+            if (_lastVscodeProcessCount > 0 && count < _lastVscodeProcessCount)
+            {
+                _logger.LogInformation(
+                    "VS Code process count dropped {Old} -> {New} — publishing Clear",
+                    _lastVscodeProcessCount,
+                    count
+                );
+                _bus.Publish(
+                    new BeaconEvent
+                    {
+                        EventType = BeaconEventType.Clear,
+                        Source = AgentSource.Unknown,
+                        SessionId = BeaconEvent.BroadcastSessionId,
+                        HookEvent = "VsCodeClosed",
+                        Reason = "A VS Code window was closed",
+                    }
+                );
+            }
+
+            _lastVscodeProcessCount = count;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Error checking VS Code processes");
         }
     }
 
@@ -97,6 +135,7 @@ public sealed class PresenceClearService : BackgroundService
                 {
                     EventType = BeaconEventType.Clear,
                     Source = AgentSource.Unknown,
+                    SessionId = BeaconEvent.BroadcastSessionId,
                     HookEvent = "FocusGained",
                     Reason = "VS Code gained focus",
                 }
