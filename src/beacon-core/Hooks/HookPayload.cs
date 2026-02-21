@@ -40,6 +40,9 @@ public sealed class HookPayload
     [JsonPropertyName("reason")]
     public string? Reason { get; set; }
 
+    [JsonPropertyName("transcript_path")]
+    public string? TranscriptPath { get; set; }
+
     public string ResolvedHookEventName => ClaudeHookEventName ?? CopilotHookEventName ?? "Unknown";
 
     public string ResolvedSessionId => SessionId ?? CopilotSessionId ?? "unknown";

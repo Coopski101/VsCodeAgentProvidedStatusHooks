@@ -16,6 +16,8 @@ var bus = new EventBus();
 builder.Services.AddSingleton(bus);
 builder.Services.AddSingleton(config);
 builder.Services.AddSingleton<HookNormalizer>();
+builder.Services.AddSingleton<CopilotTranscriptWatcher>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<CopilotTranscriptWatcher>());
 
 if (config.FakeMode)
 {
