@@ -54,6 +54,24 @@ cp hook-configs/claude-code/settings.json /path/to/your/project/.claude/settings
 
 If you already have a `.claude/settings.json`, manually merge the `"hooks"` section into your existing file.
 
+### Automated Install Script
+
+Use the provided scripts to copy hook configs into any target project:
+
+**Bash** (macOS / Linux / Git Bash on Windows):
+
+```bash
+./scripts/install-hooks.sh /path/to/your/project
+```
+
+**PowerShell** (Windows / pwsh):
+
+```powershell
+.\scripts\install-hooks.ps1 -TargetDir C:\path\to\your\project
+```
+
+Both scripts copy the Copilot config into `.github/hooks/` and the Claude Code config into `.claude/`. If a `.claude/settings.json` already exists, the script warns you to merge manually instead of overwriting.
+
 ### Per-Project vs Global
 
 The steps above are **per-project** — hooks only fire in repos that have the config. If you want hooks in every project:
