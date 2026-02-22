@@ -157,16 +157,7 @@ Beacon__FakeMode=true dotnet run
 
 ## Architecture
 
-```
-Agent (Copilot/Claude) ──hook──► curl POST /hook ──► Beacon Server ──SSE──► Clients
-                                                            │
-                                                    SessionOrchestrator
-                                                   (per-window sessions,
-                                                    publishing rules)
-                                                            │
-                                                    IPlatformMonitor
-                                                   (HWND focus + idle)
-```
+[View architecture diagram](docs/architecture.md)
 
 ### Multi-Session / Multi-Window
 
