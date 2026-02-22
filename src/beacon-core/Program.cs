@@ -11,8 +11,10 @@ var builder = WebApplication.CreateBuilder(args);
 var config = new BeaconConfig();
 builder.Configuration.GetSection("Beacon").Bind(config);
 
+var bus = new EventBus();
+
+builder.Services.AddSingleton(bus);
 builder.Services.AddSingleton(config);
-builder.Services.AddSingleton<EventBus>();
 builder.Services.AddSingleton<HookNormalizer>();
 builder.Services.AddSingleton<CopilotTranscriptWatcher>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<CopilotTranscriptWatcher>());
@@ -36,8 +38,6 @@ else
 }
 
 var app = builder.Build();
-
-var bus = app.Services.GetRequiredService<EventBus>();
 
 app.MapBeaconEndpoints(bus);
 

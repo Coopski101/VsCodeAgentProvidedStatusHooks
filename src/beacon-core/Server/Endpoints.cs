@@ -16,26 +16,14 @@ public static class Endpoints
         app.MapGet(
             "/state",
             () =>
-            {
-                var sessions = bus.GetSessions();
-                var result = new Dictionary<string, object>();
-                foreach (var (id, state) in sessions)
-                {
-                    result[id] = new
-                    {
-                        mode = state.Mode.ToString().ToLowerInvariant(),
-                        source = state.Source?.ToString(),
-                        lastUpdated = state.LastUpdated,
-                    };
-                }
-                return Results.Json(
+                Results.Json(
                     new
                     {
-                        aggregate = bus.CurrentMode.ToString().ToLowerInvariant(),
-                        sessions = result,
+                        active = bus.ActiveSignal,
+                        mode = bus.CurrentMode.ToString().ToLowerInvariant(),
+                        source = bus.LastSource?.ToString(),
                     }
-                );
-            }
+                )
         );
 
         app.MapPost(
@@ -64,10 +52,7 @@ public static class Endpoints
                     return Results.BadRequest(new { error = "Empty payload" });
 
                 if (payload.TranscriptPath is not null)
-                    transcriptWatcher.RegisterTranscript(
-                        payload.ResolvedSessionId,
-                        payload.TranscriptPath
-                    );
+                    transcriptWatcher.SetTranscriptPath(payload.TranscriptPath);
 
                 var evt = normalizer.Normalize(payload);
                 if (evt is null)
