@@ -1,6 +1,6 @@
 # Copilot Beacon v2
 
-A lightweight local HTTP server that tracks AI agent activity (VS Code Copilot and Claude Code) using their official hook systems, then exposes state via SSE so downstream clients (LED strips, desktop widgets, etc.) can react in real time.
+A local HTTP+SSE server that tracks AI agent activity across multiple VS Code windows simultaneously. Each window's Copilot or Claude Code session is tracked independently using official agent hooks and correlated to its window handle (HWND). The server applies smart publishing rules — signaling "waiting" or "done" only when the user isn't actively looking at that window, deferring via an AFK timer when the window is focused, and auto-clearing when the user returns focus or comes back from idle — so downstream clients (LED strips, desktop widgets, etc.) only light up when there's genuinely unattended work.
 
 ## States
 
@@ -42,7 +42,7 @@ cp hook-configs/copilot/CopilotHookSettings.json /path/to/your/project/.github/h
 
 Copilot automatically discovers JSON files in `.github/hooks/`.
 
-### Claude Code
+### Claude Code *(untested)*
 
 Merge the hook entries from `hook-configs/claude-code/settings.json` into your project's `.claude/settings.json`:
 
@@ -76,15 +76,15 @@ Both scripts copy the Copilot config into `.github/hooks/` and the Claude Code c
 
 The steps above are **per-project** — hooks only fire in repos that have the config. If you want hooks in every project:
 
-- **Copilot**: Place `beacon.json` in your global `.github/hooks/` directory
-- **Claude Code**: Add the hooks section to `~/.claude/settings.json` (user-level settings)
+- **Copilot**: Place `CopilotHookSettings.json` in your global `.github/hooks/` directory
+- **Claude Code** *(untested)*: Add the hooks section to `~/.claude/settings.json` (user-level settings)
 
 ## API
 
 | Endpoint | Method | Description |
 |---|---|---|
 | `/health` | GET | Returns `{ "ok": true, "version": "2.0.0" }` |
-| `/state` | GET | Returns current `{ "active", "mode", "source" }` |
+| `/state` | GET | Per-session state (all sessions, or `?sessionId=...` for one) |
 | `/events` | GET | SSE stream of `BeaconEvent` objects |
 | `/hook` | POST | Receives hook payloads from agent scripts |
 
@@ -93,6 +93,7 @@ The steps above are **per-project** — hooks only fire in repos that have the c
 ```json
 {
   "eventType": "Done",
+  "sessionId": "4439e1a4-7230-4ec3-ad56-162c827e7495",
   "source": "Copilot",
   "hookEvent": "Stop",
   "reason": "Agent finished responding",
@@ -123,13 +124,12 @@ Mappings are split per agent since each has different hook events:
 ```json
 {
   "Stop": "Done",
-  "PermissionRequest": "Waiting",
   "UserPromptSubmit": "Clear",
   "SessionStart": "Clear"
 }
 ```
 
-**Claude Code:**
+**Claude Code** *(untested)***:**
 ```json
 {
   "Stop": "Done",
@@ -160,24 +160,38 @@ Beacon__FakeMode=true dotnet run
 ```
 Agent (Copilot/Claude) ──hook──► curl POST /hook ──► Beacon Server ──SSE──► Clients
                                                             │
-                                                 IPlatformMonitor
-                                                 (focus + idle)
+                                                    SessionOrchestrator
+                                                   (per-window sessions,
+                                                    publishing rules)
                                                             │
-                                                  PresenceClearService
-                                                  (auto-clear on AFK return)
+                                                    IPlatformMonitor
+                                                   (HWND focus + idle)
 ```
 
+### Multi-Session / Multi-Window
+
+Each VS Code window is tracked as a separate session, identified by its Win32 window handle (HWND). This works even though all VS Code windows share a single process PID. Publishing rules are per-session:
+
+- **Window not focused** → publish immediately (Waiting/Done)
+- **Window focused** → start AFK timer; publish only if user goes idle
+- **Window gains focus** while Waiting/Done → publish Clear
+- **User returns from AFK** with session window focused → publish Clear
+- **Window closed** → end session
+
+### Components
+
 - **Hooks** use inline `curl` commands — agents pipe JSON to stdin, curl POSTs it to the server. No script files needed.
-- **HookNormalizer** translates agent-specific events into unified `BeaconEvent` types using configurable per-agent mappings
-- **EventBus** manages state and pub/sub to SSE clients
-- **IPlatformMonitor** (Windows: `SetWinEventHook` + `GetLastInputInfo`; other platforms: no-op stub) detects focus changes and idle duration
-- **PresenceClearService** watches for AFK-return to auto-clear stale signals
+- **HookNormalizer** translates agent-specific events into unified types using configurable per-agent mappings
+- **SessionOrchestrator** manages per-session state, applies publishing rules, handles focus/AFK logic
+- **SessionRegistry** maps session IDs ↔ window handles, tracks lifecycle
+- **EventBus** pure broadcast pub/sub to SSE clients (no global state)
+- **IPlatformMonitor** (Windows: `SetWinEventHook` + `GetLastInputInfo` + `IsWindow`; other platforms: no-op stub) detects window focus changes, idle duration, and window liveness
 
 ## Platform Support
 
 | Platform | Hook Pipeline | Focus/Idle Detection |
 |---|---|---|
 | Windows | Full | Full (Win32 P/Invoke) |
-| macOS/Linux | Full | Stub (no-op) — PRs welcome |
+| macOS/Linux | Full | Stub (no-op) |
 
 The hook-based detection (the core feature) is fully cross-platform. Only the presence clearing (focus + AFK) is Windows-specific, and it degrades gracefully — on other platforms, clearing happens via `UserPromptSubmit` and `SessionStart` hooks instead.
