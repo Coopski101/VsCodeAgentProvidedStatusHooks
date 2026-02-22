@@ -1,4 +1,5 @@
 using System.Text.Json;
+using BeaconCore.Config;
 using BeaconCore.Events;
 using BeaconCore.Sessions;
 
@@ -7,19 +8,21 @@ namespace BeaconCore.Hooks;
 public sealed class CopilotTranscriptWatcher : BackgroundService
 {
     private readonly IServiceProvider _services;
+    private readonly BeaconConfig _config;
     private readonly ILogger<CopilotTranscriptWatcher> _logger;
     private readonly Lock _lock = new();
     private readonly Dictionary<string, TranscriptSession> _sessions = new();
 
-    private static readonly TimeSpan ApprovalDetectionDelay = TimeSpan.FromMilliseconds(1500);
     private static readonly TimeSpan PollInterval = TimeSpan.FromMilliseconds(300);
 
     public CopilotTranscriptWatcher(
         IServiceProvider services,
+        BeaconConfig config,
         ILogger<CopilotTranscriptWatcher> logger
     )
     {
         _services = services;
+        _config = config;
         _logger = logger;
     }
 
@@ -263,7 +266,7 @@ public sealed class CopilotTranscriptWatcher : BackgroundService
         {
             try
             {
-                await Task.Delay(ApprovalDetectionDelay, cts!.Token);
+                await Task.Delay(_config.AutoApprovedToolDetectionDelayMs, cts!.Token);
             }
             catch (OperationCanceledException)
             {
@@ -287,7 +290,7 @@ public sealed class CopilotTranscriptWatcher : BackgroundService
             _logger.LogInformation(
                 "Transcript [{Session}]: no tool.execution_start after {Delay}ms — sending Waiting",
                 ts.SessionId,
-                ApprovalDetectionDelay.TotalMilliseconds
+                _config.AutoApprovedToolDetectionDelayMs
             );
 
             var orchestrator = _services.GetRequiredService<SessionOrchestrator>();
