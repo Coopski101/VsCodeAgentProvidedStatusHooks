@@ -17,7 +17,7 @@ public sealed class BeaconConfig
         new()
         {
             ["Stop"] = "Done",
-            ["PermissionRequest"] = "Waiting",
+            ["PreToolUse"] = "WatchTranscript",
             ["UserPromptSubmit"] = "Clear",
             ["SessionStart"] = "Clear",
         };
@@ -27,6 +27,7 @@ public sealed class BeaconConfig
         {
             ["Stop"] = "Done",
             ["SubagentStop"] = "Done",
+            ["PermissionRequest"] = "Waiting",
             ["Notification:permission_prompt"] = "Waiting",
             ["Notification:idle_prompt"] = "Waiting",
             ["UserPromptSubmit"] = "Clear",

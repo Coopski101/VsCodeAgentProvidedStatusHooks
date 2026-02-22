@@ -12,9 +12,8 @@
         ]
       }
     ],
-    "Notification": [
+    "SubagentStop": [
       {
-        "matcher": "permission_prompt|idle_prompt",
         "hooks": [
           {
             "type": "command",
@@ -27,6 +26,19 @@
     ],
     "PermissionRequest": [
       {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "curl -s -X POST http://127.0.0.1:17321/hook -H 'Content-Type: application/json' -d @- > /dev/null 2>&1",
+            "async": true,
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "Notification": [
+      {
+        "matcher": "permission_prompt|idle_prompt",
         "hooks": [
           {
             "type": "command",

@@ -233,7 +233,7 @@ public sealed class CopilotTranscriptWatcher : BackgroundService
             orchestrator.HandleStateChange(
                 ts.SessionId,
                 AgentSource.Copilot,
-                BeaconEventType.Clear,
+                HookAction.Clear,
                 "TranscriptApproval",
                 "User approved tool execution"
             );
@@ -294,7 +294,7 @@ public sealed class CopilotTranscriptWatcher : BackgroundService
             orchestrator.HandleStateChange(
                 ts.SessionId,
                 AgentSource.Copilot,
-                BeaconEventType.Waiting,
+                HookAction.Waiting,
                 "TranscriptApprovalPending",
                 "Copilot waiting for user to approve tool execution"
             );

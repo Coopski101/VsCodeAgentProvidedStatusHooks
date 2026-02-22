@@ -4,10 +4,11 @@ using BeaconCore.Events;
 namespace BeaconCore.Hooks;
 
 public sealed record NormalizedHookResult(
-    BeaconEventType EventType,
+    HookAction Action,
     AgentSource Source,
     string HookEvent,
-    string Reason
+    string Reason,
+    string? TranscriptPath = null
 );
 
 public sealed class HookNormalizer
@@ -58,10 +59,35 @@ public sealed class HookNormalizer
             return null;
         }
 
-        if (!Enum.TryParse<BeaconEventType>(targetStr, ignoreCase: true, out var eventType))
+        if (string.Equals(targetStr, "WatchTranscript", StringComparison.OrdinalIgnoreCase))
+        {
+            if (payload.TranscriptPath is null)
+            {
+                _logger.LogDebug(
+                    "'{MappingKey}' mapped to WatchTranscript but no transcript_path in payload",
+                    mappingKey
+                );
+                return null;
+            }
+
+            _logger.LogInformation(
+                "'{MappingKey}' -> WatchTranscript (source: {Agent})",
+                mappingKey,
+                agent
+            );
+            return new NormalizedHookResult(
+                HookAction.WatchTranscript,
+                agent,
+                hookEvent,
+                BuildReason(hookEvent, payload),
+                payload.TranscriptPath
+            );
+        }
+
+        if (!Enum.TryParse<HookAction>(targetStr, ignoreCase: true, out var action))
         {
             _logger.LogWarning(
-                "EventMapping '{MappingKey}' has invalid target '{Target}' — expected Waiting, Done, or Clear",
+                "EventMapping '{MappingKey}' has invalid target '{Target}' — expected Waiting, Done, Clear, or WatchTranscript",
                 mappingKey,
                 targetStr
             );
@@ -69,18 +95,13 @@ public sealed class HookNormalizer
         }
 
         _logger.LogInformation(
-            "Mapped '{MappingKey}' -> {EventType} (source: {Agent})",
+            "Mapped '{MappingKey}' -> {Action} (source: {Agent})",
             mappingKey,
-            eventType,
+            action,
             agent
         );
 
-        return new NormalizedHookResult(
-            eventType,
-            agent,
-            hookEvent,
-            BuildReason(hookEvent, payload)
-        );
+        return new NormalizedHookResult(action, agent, hookEvent, BuildReason(hookEvent, payload));
     }
 
     private static string? ResolveMappingKey(string hookEvent, HookPayload payload)

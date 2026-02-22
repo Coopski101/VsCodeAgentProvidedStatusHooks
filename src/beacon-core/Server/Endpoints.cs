@@ -82,17 +82,28 @@ public static class Endpoints
 
                 var sessionId = payload.ResolvedSessionId;
 
-                if (payload.TranscriptPath is not null)
-                    transcriptWatcher.SetTranscriptPath(sessionId, payload.TranscriptPath);
-
                 var result = normalizer.Normalize(payload);
                 if (result is null)
                     return Results.Ok(new { accepted = true, mapped = false });
 
+                if (result.TranscriptPath is not null)
+                    transcriptWatcher.SetTranscriptPath(sessionId, result.TranscriptPath);
+
+                if (result.Action == HookAction.WatchTranscript)
+                    return Results.Ok(
+                        new
+                        {
+                            accepted = true,
+                            mapped = true,
+                            action = result.Action.ToString(),
+                            sessionId,
+                        }
+                    );
+
                 orchestrator.HandleStateChange(
                     sessionId,
                     result.Source,
-                    result.EventType,
+                    result.Action,
                     result.HookEvent,
                     result.Reason
                 );
@@ -102,7 +113,7 @@ public static class Endpoints
                     {
                         accepted = true,
                         mapped = true,
-                        eventType = result.EventType.ToString(),
+                        action = result.Action.ToString(),
                         sessionId,
                     }
                 );

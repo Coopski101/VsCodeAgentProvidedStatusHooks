@@ -1,5 +1,6 @@
 using BeaconCore.Config;
 using BeaconCore.Events;
+using BeaconCore.Hooks;
 using BeaconCore.Platform;
 
 namespace BeaconCore.Sessions;
@@ -52,7 +53,7 @@ public sealed class SessionOrchestrator : BackgroundService
     public void HandleStateChange(
         string sessionId,
         AgentSource source,
-        BeaconEventType eventType,
+        HookAction action,
         string hookEvent,
         string reason
     )
@@ -135,14 +136,14 @@ public sealed class SessionOrchestrator : BackgroundService
             );
         }
 
-        switch (eventType)
+        switch (action)
         {
-            case BeaconEventType.Clear:
+            case HookAction.Clear:
                 HandleClear(session, hookEvent, reason);
                 break;
-            case BeaconEventType.Waiting:
-            case BeaconEventType.Done:
-                HandleWaitingOrDone(session, eventType, hookEvent, reason);
+            case HookAction.Waiting:
+            case HookAction.Done:
+                HandleWaitingOrDone(session, action, hookEvent, reason);
                 break;
         }
     }
@@ -174,12 +175,13 @@ public sealed class SessionOrchestrator : BackgroundService
 
     private void HandleWaitingOrDone(
         SessionInfo session,
-        BeaconEventType eventType,
+        HookAction action,
         string hookEvent,
         string reason
     )
     {
-        var mode = eventType == BeaconEventType.Waiting ? BeaconMode.Waiting : BeaconMode.Done;
+        var mode = action == HookAction.Waiting ? BeaconMode.Waiting : BeaconMode.Done;
+        var wireType = ToWireEvent(action);
         session.CancelAfkTimer();
         session.InternalState = mode;
         session.StateChangedAt = DateTimeOffset.UtcNow;
@@ -195,12 +197,12 @@ public sealed class SessionOrchestrator : BackgroundService
             _logger.LogInformation(
                 "Session {Session} window not focused — publishing {Event} immediately",
                 session.SessionId,
-                eventType
+                wireType
             );
             PublishWire(
                 new BeaconEvent
                 {
-                    EventType = eventType,
+                    EventType = wireType,
                     SessionId = session.SessionId,
                     Source = session.Source,
                     HookEvent = hookEvent,
@@ -215,17 +217,18 @@ public sealed class SessionOrchestrator : BackgroundService
                 session.SessionId,
                 _config.AfkThresholdSeconds
             );
-            StartAfkTimer(session, eventType, hookEvent, reason);
+            StartAfkTimer(session, action, hookEvent, reason);
         }
     }
 
     private void StartAfkTimer(
         SessionInfo session,
-        BeaconEventType eventType,
+        HookAction action,
         string hookEvent,
         string reason
     )
     {
+        var wireType = ToWireEvent(action);
         var cts = new CancellationTokenSource();
         session.AfkTimerCts = cts;
         var capturedTickAtChange = session.InputTickAtStateChange;
@@ -251,23 +254,20 @@ public sealed class SessionOrchestrator : BackgroundService
                 return;
             }
 
-            if (
-                session.InternalState
-                != (eventType == BeaconEventType.Waiting ? BeaconMode.Waiting : BeaconMode.Done)
-            )
+            var expectedMode = action == HookAction.Waiting ? BeaconMode.Waiting : BeaconMode.Done;
+            if (session.InternalState != expectedMode)
                 return;
 
-            session.PublishedState =
-                eventType == BeaconEventType.Waiting ? BeaconMode.Waiting : BeaconMode.Done;
+            session.PublishedState = expectedMode;
             _logger.LogInformation(
                 "Session {Session} AFK timer expired with no input — publishing {Event}",
                 session.SessionId,
-                eventType
+                wireType
             );
             PublishWire(
                 new BeaconEvent
                 {
-                    EventType = eventType,
+                    EventType = wireType,
                     SessionId = session.SessionId,
                     Source = session.Source,
                     HookEvent = hookEvent,
@@ -384,6 +384,15 @@ public sealed class SessionOrchestrator : BackgroundService
             );
         }
     }
+
+    private static BeaconEventType ToWireEvent(HookAction action) =>
+        action switch
+        {
+            HookAction.Waiting => BeaconEventType.Waiting,
+            HookAction.Done => BeaconEventType.Done,
+            HookAction.Clear => BeaconEventType.Clear,
+            _ => throw new ArgumentOutOfRangeException(nameof(action)),
+        };
 
     private void PublishWire(BeaconEvent evt)
     {

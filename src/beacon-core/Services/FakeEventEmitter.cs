@@ -1,4 +1,5 @@
 using BeaconCore.Events;
+using BeaconCore.Hooks;
 using BeaconCore.Sessions;
 
 namespace BeaconCore.Services;
@@ -22,9 +23,9 @@ public sealed class FakeEventEmitter : BackgroundService
 
         var sequence = new[]
         {
-            (BeaconEventType.Waiting, "[fake] Agent is waiting for approval"),
-            (BeaconEventType.Done, "[fake] Agent has finished"),
-            (BeaconEventType.Clear, "[fake] User returned"),
+            (HookAction.Waiting, "[fake] Agent is waiting for approval"),
+            (HookAction.Done, "[fake] Agent has finished"),
+            (HookAction.Clear, "[fake] User returned"),
         };
 
         var index = 0;
@@ -33,12 +34,12 @@ public sealed class FakeEventEmitter : BackgroundService
         {
             await Task.Delay(10_000, stoppingToken);
 
-            var (eventType, reason) = sequence[index % sequence.Length];
-            _logger.LogInformation("Emitting fake event: {Event}", eventType);
+            var (action, reason) = sequence[index % sequence.Length];
+            _logger.LogInformation("Emitting fake event: {Event}", action);
             _orchestrator.HandleStateChange(
                 FakeSessionId,
                 AgentSource.Unknown,
-                eventType,
+                action,
                 "Fake",
                 reason
             );
