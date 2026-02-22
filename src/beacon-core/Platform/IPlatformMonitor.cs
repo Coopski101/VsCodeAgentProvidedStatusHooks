@@ -2,8 +2,11 @@ namespace BeaconCore.Platform;
 
 public interface IPlatformMonitor : IDisposable
 {
-    event Action<string>? AppFocusGained;
+    nint? FocusedWindowHandle { get; }
+    string? FocusedWindowProcessName { get; }
+    event Action<nint, string>? WindowFocusChanged;
     TimeSpan UserIdleDuration { get; }
-    bool IsAppFocused(string processName);
+    uint LastInputTick { get; }
+    bool IsWindowAlive(nint hwnd);
     Task StartAsync(CancellationToken ct);
 }

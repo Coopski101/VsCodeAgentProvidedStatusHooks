@@ -5,6 +5,7 @@ using BeaconCore.Platform;
 using BeaconCore.Platform.Windows;
 using BeaconCore.Server;
 using BeaconCore.Services;
+using BeaconCore.Sessions;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -16,11 +17,15 @@ var bus = new EventBus();
 builder.Services.AddSingleton(bus);
 builder.Services.AddSingleton(config);
 builder.Services.AddSingleton<HookNormalizer>();
+builder.Services.AddSingleton<SessionRegistry>();
 builder.Services.AddSingleton<CopilotTranscriptWatcher>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<CopilotTranscriptWatcher>());
 
 if (config.FakeMode)
 {
+    builder.Services.AddSingleton<IPlatformMonitor, NullPlatformMonitor>();
+    builder.Services.AddSingleton<SessionOrchestrator>();
+    builder.Services.AddHostedService(sp => sp.GetRequiredService<SessionOrchestrator>());
     builder.Services.AddHostedService<FakeEventEmitter>();
 }
 else
@@ -34,7 +39,8 @@ else
         builder.Services.AddSingleton<IPlatformMonitor, NullPlatformMonitor>();
     }
 
-    builder.Services.AddHostedService<PresenceClearService>();
+    builder.Services.AddSingleton<SessionOrchestrator>();
+    builder.Services.AddHostedService(sp => sp.GetRequiredService<SessionOrchestrator>());
 }
 
 var app = builder.Build();

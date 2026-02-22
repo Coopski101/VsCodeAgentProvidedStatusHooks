@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 
 namespace BeaconCore.Platform.Windows;
@@ -8,9 +9,12 @@ public sealed class WindowsPlatformMonitor : IPlatformMonitor
 {
     private readonly ILogger<WindowsPlatformMonitor> _logger;
     private uint _messagePumpThreadId;
+    private nint? _lastFocusedHwnd;
     private string? _lastFocusedProcessName;
 
-    public event Action<string>? AppFocusGained;
+    public nint? FocusedWindowHandle => _lastFocusedHwnd;
+    public string? FocusedWindowProcessName => _lastFocusedProcessName;
+    public event Action<nint, string>? WindowFocusChanged;
 
     public WindowsPlatformMonitor(ILogger<WindowsPlatformMonitor> logger)
     {
@@ -23,7 +27,7 @@ public sealed class WindowsPlatformMonitor : IPlatformMonitor
         {
             var info = new Win32.LASTINPUTINFO
             {
-                cbSize = (uint)System.Runtime.InteropServices.Marshal.SizeOf<Win32.LASTINPUTINFO>(),
+                cbSize = (uint)Marshal.SizeOf<Win32.LASTINPUTINFO>(),
             };
             if (!Win32.GetLastInputInfo(ref info))
                 return TimeSpan.Zero;
@@ -33,13 +37,21 @@ public sealed class WindowsPlatformMonitor : IPlatformMonitor
         }
     }
 
-    public bool IsAppFocused(string processName)
+    public uint LastInputTick
     {
-        return string.Equals(
-            _lastFocusedProcessName,
-            processName,
-            StringComparison.OrdinalIgnoreCase
-        );
+        get
+        {
+            var info = new Win32.LASTINPUTINFO
+            {
+                cbSize = (uint)Marshal.SizeOf<Win32.LASTINPUTINFO>(),
+            };
+            return Win32.GetLastInputInfo(ref info) ? info.dwTime : 0;
+        }
+    }
+
+    public bool IsWindowAlive(nint hwnd)
+    {
+        return Win32.IsWindow(hwnd);
     }
 
     public Task StartAsync(CancellationToken ct)
@@ -59,6 +71,8 @@ public sealed class WindowsPlatformMonitor : IPlatformMonitor
     private void RunMessageLoop(TaskCompletionSource tcs, CancellationToken ct)
     {
         _messagePumpThreadId = Win32.GetCurrentThreadId();
+
+        ReadCurrentForeground();
 
         Win32.WinEventDelegate callback = OnForegroundChanged;
 
@@ -99,6 +113,30 @@ public sealed class WindowsPlatformMonitor : IPlatformMonitor
         GC.KeepAlive(callback);
     }
 
+    private void ReadCurrentForeground()
+    {
+        try
+        {
+            var hwnd = Win32.GetForegroundWindow();
+            if (hwnd == nint.Zero)
+                return;
+
+            Win32.GetWindowThreadProcessId(hwnd, out var pid);
+            if (pid == 0)
+                return;
+
+            var process = Process.GetProcessById((int)pid);
+            var name = process.ProcessName;
+            _logger.LogInformation("Initial foreground: {Process} (hwnd=0x{Hwnd:X})", name, hwnd);
+            _lastFocusedHwnd = hwnd;
+            _lastFocusedProcessName = name;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to read initial foreground window");
+        }
+    }
+
     private void OnForegroundChanged(
         nint hWinEventHook,
         uint eventType,
@@ -117,10 +155,11 @@ public sealed class WindowsPlatformMonitor : IPlatformMonitor
 
             var process = Process.GetProcessById((int)pid);
             var name = process.ProcessName;
-            _logger.LogDebug("Foreground changed to {Process} (pid={Pid})", name, pid);
+            _logger.LogDebug("Foreground changed to {Process} (hwnd=0x{Hwnd:X})", name, hwnd);
+            _lastFocusedHwnd = hwnd;
             _lastFocusedProcessName = name;
 
-            AppFocusGained?.Invoke(name);
+            WindowFocusChanged?.Invoke(hwnd, name);
         }
         catch (Exception ex)
         {

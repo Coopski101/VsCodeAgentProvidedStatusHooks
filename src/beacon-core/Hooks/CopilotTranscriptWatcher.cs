@@ -1,67 +1,67 @@
 using System.Text.Json;
 using BeaconCore.Events;
+using BeaconCore.Sessions;
 
 namespace BeaconCore.Hooks;
 
 public sealed class CopilotTranscriptWatcher : BackgroundService
 {
-    private readonly EventBus _bus;
+    private readonly IServiceProvider _services;
     private readonly ILogger<CopilotTranscriptWatcher> _logger;
     private readonly Lock _lock = new();
-
-    private string? _transcriptPath;
-    private long _lastFilePosition;
-    private readonly HashSet<string> _pendingToolCallIds = [];
-    private CancellationTokenSource? _waitingTimerCts;
-    private bool _waitingPublished;
+    private readonly Dictionary<string, TranscriptSession> _sessions = new();
 
     private static readonly TimeSpan ApprovalDetectionDelay = TimeSpan.FromMilliseconds(1500);
     private static readonly TimeSpan PollInterval = TimeSpan.FromMilliseconds(300);
 
-    public CopilotTranscriptWatcher(EventBus bus, ILogger<CopilotTranscriptWatcher> logger)
+    public CopilotTranscriptWatcher(
+        IServiceProvider services,
+        ILogger<CopilotTranscriptWatcher> logger
+    )
     {
-        _bus = bus;
+        _services = services;
         _logger = logger;
     }
 
-    public void SetTranscriptPath(string path)
+    public void SetTranscriptPath(string sessionId, string path)
     {
         lock (_lock)
         {
-            if (string.Equals(_transcriptPath, path, StringComparison.OrdinalIgnoreCase))
+            if (
+                _sessions.TryGetValue(sessionId, out var existing)
+                && string.Equals(existing.Path, path, StringComparison.OrdinalIgnoreCase)
+            )
                 return;
 
-            _transcriptPath = path;
-            _lastFilePosition = 0;
-            _pendingToolCallIds.Clear();
-            _waitingPublished = false;
+            var ts = new TranscriptSession { SessionId = sessionId, Path = path };
 
-            _logger.LogInformation("Transcript watcher targeting: {Path}", path);
+            _logger.LogInformation(
+                "Transcript watcher targeting session {Session}: {Path}",
+                sessionId,
+                path
+            );
 
-            SeekToEnd(path);
+            SeekToEnd(ts);
+            _sessions[sessionId] = ts;
         }
     }
 
-    private void SeekToEnd(string path)
+    private static void SeekToEnd(TranscriptSession ts)
     {
         try
         {
-            if (File.Exists(path))
+            if (File.Exists(ts.Path))
             {
                 using var fs = new FileStream(
-                    path,
+                    ts.Path,
                     FileMode.Open,
                     FileAccess.Read,
                     FileShare.ReadWrite
                 );
-                _lastFilePosition = fs.Length;
-                _logger.LogDebug("Seeked to position {Pos} in transcript", _lastFilePosition);
+                ts.LastFilePosition = fs.Length;
             }
         }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Failed to seek transcript file");
-        }
+        catch { }
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -72,37 +72,41 @@ public sealed class CopilotTranscriptWatcher : BackgroundService
         {
             await Task.Delay(PollInterval, stoppingToken);
 
-            string? path;
+            List<TranscriptSession> snapshot;
             lock (_lock)
             {
-                path = _transcriptPath;
+                snapshot = [.. _sessions.Values];
             }
 
-            if (path is null)
-                continue;
-
-            try
+            foreach (var ts in snapshot)
             {
-                ReadNewLines(path);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogDebug(ex, "Error reading transcript");
+                try
+                {
+                    ReadNewLines(ts);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogDebug(
+                        ex,
+                        "Error reading transcript for session {Session}",
+                        ts.SessionId
+                    );
+                }
             }
         }
     }
 
-    private void ReadNewLines(string path)
+    private void ReadNewLines(TranscriptSession ts)
     {
-        if (!File.Exists(path))
+        if (!File.Exists(ts.Path))
             return;
 
-        using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+        using var fs = new FileStream(ts.Path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
 
-        if (fs.Length <= _lastFilePosition)
+        if (fs.Length <= ts.LastFilePosition)
             return;
 
-        fs.Seek(_lastFilePosition, SeekOrigin.Begin);
+        fs.Seek(ts.LastFilePosition, SeekOrigin.Begin);
 
         using var reader = new StreamReader(fs);
         string? line;
@@ -111,13 +115,13 @@ public sealed class CopilotTranscriptWatcher : BackgroundService
             if (string.IsNullOrWhiteSpace(line))
                 continue;
 
-            ProcessLine(line);
+            ProcessLine(ts, line);
         }
 
-        _lastFilePosition = fs.Position;
+        ts.LastFilePosition = fs.Position;
     }
 
-    private void ProcessLine(string line)
+    private void ProcessLine(TranscriptSession ts, string line)
     {
         try
         {
@@ -132,17 +136,17 @@ public sealed class CopilotTranscriptWatcher : BackgroundService
             switch (type)
             {
                 case "assistant.message":
-                    HandleAssistantMessage(root);
+                    HandleAssistantMessage(ts, root);
                     break;
                 case "tool.execution_start":
-                    HandleToolExecutionStart(root);
+                    HandleToolExecutionStart(ts, root);
                     break;
             }
         }
         catch (JsonException) { }
     }
 
-    private void HandleAssistantMessage(JsonElement root)
+    private void HandleAssistantMessage(TranscriptSession ts, JsonElement root)
     {
         if (!root.TryGetProperty("data", out var data))
             return;
@@ -171,20 +175,20 @@ public sealed class CopilotTranscriptWatcher : BackgroundService
         {
             foreach (var id in toolCallIds)
             {
-                _pendingToolCallIds.Add(id);
+                ts.PendingToolCallIds.Add(id);
             }
         }
 
         _logger.LogDebug(
-            "Transcript: {Count} tool request(s) pending approval: {Tools}",
-            toolCallIds.Count,
-            string.Join(", ", toolCallIds.Select(id => id[^8..]))
+            "Transcript [{Session}]: {Count} tool request(s) pending approval",
+            ts.SessionId,
+            toolCallIds.Count
         );
 
-        StartApprovalTimer();
+        StartApprovalTimer(ts);
     }
 
-    private void HandleToolExecutionStart(JsonElement root)
+    private void HandleToolExecutionStart(TranscriptSession ts, JsonElement root)
     {
         if (!root.TryGetProperty("data", out var data))
             return;
@@ -201,53 +205,59 @@ public sealed class CopilotTranscriptWatcher : BackgroundService
 
         lock (_lock)
         {
-            wasWaiting = _waitingPublished;
-            _pendingToolCallIds.Remove(toolCallId);
-            allCleared = _pendingToolCallIds.Count == 0;
+            wasWaiting = ts.WaitingPublished;
+            ts.PendingToolCallIds.Remove(toolCallId);
+            allCleared = ts.PendingToolCallIds.Count == 0;
 
             if (allCleared)
             {
-                _waitingTimerCts?.Cancel();
-                _waitingTimerCts?.Dispose();
-                _waitingTimerCts = null;
+                ts.WaitingTimerCts?.Cancel();
+                ts.WaitingTimerCts?.Dispose();
+                ts.WaitingTimerCts = null;
             }
         }
 
         if (wasWaiting && allCleared)
         {
-            _logger.LogInformation("Transcript: tool approved, publishing Clear");
+            _logger.LogInformation(
+                "Transcript [{Session}]: tool approved, sending Clear",
+                ts.SessionId
+            );
 
             lock (_lock)
             {
-                _waitingPublished = false;
+                ts.WaitingPublished = false;
             }
 
-            _bus.Publish(
-                new BeaconEvent
-                {
-                    EventType = BeaconEventType.Clear,
-                    Source = AgentSource.Copilot,
-                    HookEvent = "TranscriptApproval",
-                    Reason = "User approved tool execution",
-                }
+            var orchestrator = _services.GetRequiredService<SessionOrchestrator>();
+            orchestrator.HandleStateChange(
+                ts.SessionId,
+                AgentSource.Copilot,
+                BeaconEventType.Clear,
+                "TranscriptApproval",
+                "User approved tool execution"
             );
         }
         else
         {
-            _logger.LogDebug("Transcript: tool {Id} started (auto-approved)", toolCallId[^8..]);
+            _logger.LogDebug(
+                "Transcript [{Session}]: tool {Id} started (auto-approved)",
+                ts.SessionId,
+                toolCallId[^8..]
+            );
         }
     }
 
-    private void StartApprovalTimer()
+    private void StartApprovalTimer(TranscriptSession ts)
     {
         lock (_lock)
         {
-            _waitingTimerCts?.Cancel();
-            _waitingTimerCts?.Dispose();
-            _waitingTimerCts = new CancellationTokenSource();
+            ts.WaitingTimerCts?.Cancel();
+            ts.WaitingTimerCts?.Dispose();
+            ts.WaitingTimerCts = new CancellationTokenSource();
         }
 
-        var cts = _waitingTimerCts;
+        var cts = ts.WaitingTimerCts;
 
         _ = Task.Run(async () =>
         {
@@ -263,7 +273,7 @@ public sealed class CopilotTranscriptWatcher : BackgroundService
             bool hasPending;
             lock (_lock)
             {
-                hasPending = _pendingToolCallIds.Count > 0;
+                hasPending = ts.PendingToolCallIds.Count > 0;
             }
 
             if (!hasPending)
@@ -271,30 +281,46 @@ public sealed class CopilotTranscriptWatcher : BackgroundService
 
             lock (_lock)
             {
-                _waitingPublished = true;
+                ts.WaitingPublished = true;
             }
 
             _logger.LogInformation(
-                "Transcript: no tool.execution_start after {Delay}ms — publishing Waiting (Copilot approval pending)",
+                "Transcript [{Session}]: no tool.execution_start after {Delay}ms — sending Waiting",
+                ts.SessionId,
                 ApprovalDetectionDelay.TotalMilliseconds
             );
 
-            _bus.Publish(
-                new BeaconEvent
-                {
-                    EventType = BeaconEventType.Waiting,
-                    Source = AgentSource.Copilot,
-                    HookEvent = "TranscriptApprovalPending",
-                    Reason = "Copilot waiting for user to approve tool execution",
-                }
+            var orchestrator = _services.GetRequiredService<SessionOrchestrator>();
+            orchestrator.HandleStateChange(
+                ts.SessionId,
+                AgentSource.Copilot,
+                BeaconEventType.Waiting,
+                "TranscriptApprovalPending",
+                "Copilot waiting for user to approve tool execution"
             );
         });
     }
 
     public override void Dispose()
     {
-        _waitingTimerCts?.Cancel();
-        _waitingTimerCts?.Dispose();
+        lock (_lock)
+        {
+            foreach (var ts in _sessions.Values)
+            {
+                ts.WaitingTimerCts?.Cancel();
+                ts.WaitingTimerCts?.Dispose();
+            }
+        }
         base.Dispose();
+    }
+
+    private sealed class TranscriptSession
+    {
+        public required string SessionId { get; init; }
+        public required string Path { get; init; }
+        public long LastFilePosition { get; set; }
+        public HashSet<string> PendingToolCallIds { get; } = [];
+        public CancellationTokenSource? WaitingTimerCts { get; set; }
+        public bool WaitingPublished { get; set; }
     }
 }

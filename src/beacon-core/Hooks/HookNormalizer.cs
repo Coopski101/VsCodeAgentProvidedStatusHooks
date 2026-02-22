@@ -1,8 +1,14 @@
 using BeaconCore.Config;
 using BeaconCore.Events;
-using Microsoft.Extensions.Logging;
 
 namespace BeaconCore.Hooks;
+
+public sealed record NormalizedHookResult(
+    BeaconEventType EventType,
+    AgentSource Source,
+    string HookEvent,
+    string Reason
+);
 
 public sealed class HookNormalizer
 {
@@ -15,7 +21,7 @@ public sealed class HookNormalizer
         _logger = logger;
     }
 
-    public BeaconEvent? Normalize(HookPayload payload)
+    public NormalizedHookResult? Normalize(HookPayload payload)
     {
         if (payload.StopHookActive == true)
         {
@@ -44,7 +50,7 @@ public sealed class HookNormalizer
 
         if (!mappings.TryGetValue(mappingKey, out var targetStr))
         {
-            _logger.LogDebug(
+            _logger.LogTrace(
                 "No EventMapping found for key '{MappingKey}' in {Agent} mappings, ignoring",
                 mappingKey,
                 agent
@@ -69,14 +75,12 @@ public sealed class HookNormalizer
             agent
         );
 
-        return new BeaconEvent
-        {
-            EventType = eventType,
-            Source = agent,
-            HookEvent = hookEvent,
-            Reason = BuildReason(hookEvent, payload),
-            Timestamp = DateTimeOffset.UtcNow,
-        };
+        return new NormalizedHookResult(
+            eventType,
+            agent,
+            hookEvent,
+            BuildReason(hookEvent, payload)
+        );
     }
 
     private static string? ResolveMappingKey(string hookEvent, HookPayload payload)

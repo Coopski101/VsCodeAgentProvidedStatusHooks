@@ -1,15 +1,18 @@
 using BeaconCore.Events;
+using BeaconCore.Sessions;
 
 namespace BeaconCore.Services;
 
 public sealed class FakeEventEmitter : BackgroundService
 {
-    private readonly EventBus _bus;
+    private readonly SessionOrchestrator _orchestrator;
     private readonly ILogger<FakeEventEmitter> _logger;
 
-    public FakeEventEmitter(EventBus bus, ILogger<FakeEventEmitter> logger)
+    private const string FakeSessionId = "fake-session-001";
+
+    public FakeEventEmitter(SessionOrchestrator orchestrator, ILogger<FakeEventEmitter> logger)
     {
-        _bus = bus;
+        _orchestrator = orchestrator;
         _logger = logger;
     }
 
@@ -31,15 +34,14 @@ public sealed class FakeEventEmitter : BackgroundService
             await Task.Delay(10_000, stoppingToken);
 
             var (eventType, reason) = sequence[index % sequence.Length];
-            var evt = new BeaconEvent
-            {
-                EventType = eventType,
-                Source = AgentSource.Unknown,
-                HookEvent = "Fake",
-                Reason = reason,
-            };
-            _logger.LogInformation("Emitting fake event: {Event}", evt.EventType);
-            _bus.Publish(evt);
+            _logger.LogInformation("Emitting fake event: {Event}", eventType);
+            _orchestrator.HandleStateChange(
+                FakeSessionId,
+                AgentSource.Unknown,
+                eventType,
+                "Fake",
+                reason
+            );
             index++;
         }
     }

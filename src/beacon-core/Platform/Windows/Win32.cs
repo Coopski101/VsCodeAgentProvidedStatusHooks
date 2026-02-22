@@ -88,6 +88,10 @@ internal static partial class Win32
         public int y;
     }
 
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool IsWindow(nint hWnd);
+
     [LibraryImport("kernel32.dll")]
     public static partial uint GetCurrentThreadId();
 }

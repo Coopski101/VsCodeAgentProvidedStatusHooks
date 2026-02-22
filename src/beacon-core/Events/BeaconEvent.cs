@@ -8,6 +8,8 @@ public enum BeaconEventType
     Waiting,
     Done,
     Clear,
+    SessionStarted,
+    SessionEnded,
 }
 
 [JsonConverter(typeof(JsonStringEnumConverter))]
@@ -22,6 +24,9 @@ public sealed class BeaconEvent
 {
     [JsonPropertyName("eventType")]
     public required BeaconEventType EventType { get; init; }
+
+    [JsonPropertyName("sessionId")]
+    public required string SessionId { get; init; }
 
     [JsonPropertyName("source")]
     public required AgentSource Source { get; init; }

@@ -14,10 +14,6 @@ public sealed class EventBus
     private readonly List<Channel<BeaconEvent>> _subscribers = [];
     private readonly Lock _lock = new();
 
-    public BeaconMode CurrentMode { get; private set; } = BeaconMode.Idle;
-    public bool ActiveSignal { get; private set; }
-    public AgentSource? LastSource { get; private set; }
-
     public ChannelReader<BeaconEvent> Subscribe()
     {
         var channel = Channel.CreateUnbounded<BeaconEvent>(
@@ -42,22 +38,6 @@ public sealed class EventBus
 
     public void Publish(BeaconEvent evt)
     {
-        if (evt.EventType is BeaconEventType.Waiting or BeaconEventType.Done)
-        {
-            ActiveSignal = true;
-            CurrentMode =
-                evt.EventType == BeaconEventType.Waiting ? BeaconMode.Waiting : BeaconMode.Done;
-            LastSource = evt.Source;
-        }
-        else if (evt.EventType == BeaconEventType.Clear)
-        {
-            if (!ActiveSignal)
-                return;
-            ActiveSignal = false;
-            CurrentMode = BeaconMode.Idle;
-            LastSource = null;
-        }
-
         lock (_lock)
         {
             foreach (var ch in _subscribers)
