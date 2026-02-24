@@ -1,4 +1,4 @@
-# Copilot Beacon v2
+# Agentic Unattended (Service)
 
 A local HTTP+SSE server that tracks AI agent activity across multiple VS Code windows simultaneously. Each window's Copilot or Claude Code session is tracked independently using official agent hooks and correlated to its window handle (HWND). The server applies smart publishing rules — signaling "waiting" or "done" only when the user isn't actively looking at that window, deferring via an AFK timer when the window is focused, and auto-clearing when the user returns focus or comes back from idle — so downstream clients (LED strips, desktop widgets, etc.) only light up when there's genuinely unattended work.
 
