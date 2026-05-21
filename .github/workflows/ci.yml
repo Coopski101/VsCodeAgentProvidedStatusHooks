@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Restore
+        run: dotnet restore AgenticUnattended-Service.tests/AgenticUnattended-Service.tests.csproj
+
+      - name: Build
+        run: dotnet build AgenticUnattended-Service.tests/AgenticUnattended-Service.tests.csproj --configuration Release --no-restore
+
+      - name: Test
+        run: dotnet test AgenticUnattended-Service.tests/AgenticUnattended-Service.tests.csproj --configuration Release --no-build --verbosity normal

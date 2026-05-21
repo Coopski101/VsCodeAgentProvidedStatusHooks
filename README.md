@@ -1,5 +1,9 @@
 # Agentic Unattended (Service)
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![CI](https://github.com/Coopski101/AgenticUnattended-Service/actions/workflows/ci.yml/badge.svg)](https://github.com/Coopski101/AgenticUnattended-Service/actions/workflows/ci.yml)
+[![.NET 10](https://img.shields.io/badge/.NET-10.0-512BD4.svg)](https://dotnet.microsoft.com/download/dotnet/10.0)
+
 A local HTTP+SSE service that tracks AI agent activity across multiple VS Code windows simultaneously and publishes concise updates when something actually needs attended to (waiting for input, or done). Each window's Copilot/Claude session is tracked independently using their provided hooks and correlated to its window. The server applies filters as not to publish redundant events - signaling "waiting" or "done" only when it _assumes_ the user isn't actively looking at that window, deferring via an AFK timer when the window is focused, and auto-clearing when the user returns focus or comes back from idle — so downstream clients (LED strips, desktop widgets, etc.) only light up when there's genuinely unattended work. Multiple clients can be connected as well.
 
 ## States
@@ -186,3 +190,13 @@ Each VS Code window is tracked as a separate session, identified by its Win32 wi
 | macOS/Linux | Full | Stub (no-op) |
 
 The hook-based detection (the core feature) is fully cross-platform. Only the presence clearing (focus + AFK) is Windows-specific, and it degrades gracefully — on other platforms, clearing happens via `UserPromptSubmit` and `SessionStart` hooks instead.
+
+## Contributing
+
+Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for build instructions, project layout, and PR guidelines. By participating you agree to abide by the [Code of Conduct](CODE_OF_CONDUCT.md).
+
+For security issues, please follow [SECURITY.md](SECURITY.md) instead of filing a public issue.
+
+## License
+
+[MIT](LICENSE) © 2026 Coopski101
