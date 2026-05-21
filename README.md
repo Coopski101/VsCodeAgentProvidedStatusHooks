@@ -12,7 +12,7 @@ A local HTTP+SSE service that tracks AI agent activity across multiple VS Code w
 
 ## Prerequisites
 
-- [.NET 9 SDK](https://dotnet.microsoft.com/download/dotnet/9.0)
+- [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)
 
 ## Quick Start
 
