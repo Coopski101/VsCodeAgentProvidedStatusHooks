@@ -104,7 +104,7 @@ public sealed class SessionStateMachineTests : IDisposable
         _sm.HandleStateChange("s1", AgentSource.Copilot, HookAction.Done, "Stop", "done");
         _sm.HandleStateChange("s1", AgentSource.Copilot, HookAction.Clear, "Clear", "clear");
 
-        Assert.Single(_events.Events.Where(e => e.EventType == BeaconEventType.SessionStarted));
+        Assert.Single(_events.Events, e => e.EventType == BeaconEventType.SessionStarted);
     }
 
     [Fact]
