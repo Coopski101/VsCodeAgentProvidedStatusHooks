@@ -46,7 +46,7 @@ cp hook-configs/copilot/CopilotHookSettings.json /path/to/your/project/.github/h
 
 Copilot automatically discovers JSON files in `.github/hooks/`.
 
-### Claude Code *(untested)*
+### Claude Code
 
 Merge the hook entries from `hook-configs/claude-code/settings.json` into your project's `.claude/settings.json`:
 
@@ -81,7 +81,7 @@ Both scripts copy the Copilot config into `.github/hooks/` and the Claude Code c
 The steps above are **per-project** — hooks only fire in repos that have the config. If you want hooks in every project:
 
 - **Copilot**: Place `CopilotHookSettings.json` in your global `.github/hooks/` directory
-- **Claude Code** *(untested)*: Add the hooks section to `~/.claude/settings.json` (user-level settings)
+- **Claude Code**: Add the hooks section to `~/.claude/settings.json` (user-level settings)
 
 ## API
 
@@ -133,7 +133,7 @@ Mappings are split per agent since each has different hook events:
 }
 ```
 
-**Claude Code** *(untested)***:**
+**Claude Code:**
 ```json
 {
   "Stop": "Done",
